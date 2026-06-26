@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>테트리스</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0d0d0d; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 20px; }
+#app { display: flex; gap: 16px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+#left-panel { display: flex; flex-direction: column; gap: 10px; min-width: 140px; }
+#game-canvas { border: 2px solid #444; border-radius: 4px; display: block; background: #111; }
+#right-panel { display: flex; flex-direction: column; gap: 10px; min-width: 130px; }
+.panel-box { background: #1a1a1a; border: 0.5px solid #333; border-radius: 8px; padding: 10px; }
+.panel-title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.panel-value { font-size: 20px; font-weight: 500; color: #fff; }
+.panel-sub { font-size: 12px; color: #aaa; margin-top: 2px; }
+#next-canvas { border: 0.5px solid #333; border-radius: 4px; background: #111; display: block; }
+.item-slot { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; border: 0.5px solid #333; background: #0d0d0d; cursor: pointer; transition: border-color 0.15s; margin-bottom: 4px; font-size: 12px; color: #eee; }
+.item-slot:hover { border-color: #666; }
+.item-slot.has-item { border-color: #f5c842; }
+.item-icon { font-size: 16px; min-width: 20px; text-align: center; }
+.item-count { font-size: 11px; color: #f5c842; margin-left: auto; }
+#btn-start { width: 100%; padding: 10px; border-radius: 8px; border: 1.5px solid #f5c842; background: transparent; color: #f5c842; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+#btn-start:hover { background: rgba(245,200,66,0.12); }
+.effect-msg { position: fixed; font-size: 13px; font-weight: 500; pointer-events: none; animation: floatUp 1.2s ease-out forwards; z-index: 999; }
+@keyframes floatUp { 0%{opacity:1;transform:translateY(0);} 100%{opacity:0;transform:translateY(-60px);} }
+#stage-banner { position: absolute; left: 50%; transform: translateX(-50%) scale(0.5); opacity: 0; font-size: 22px; font-weight: 500; color: #f5c842; white-space: nowrap; pointer-events: none; top: 40%; }
+#stage-banner.show { animation: stagePop 2s ease-in-out forwards; }
+@keyframes stagePop { 0%{opacity:0;transform:translateX(-50%) scale(0.5);} 20%{opacity:1;transform:translateX(-50%) scale(1);} 70%{opacity:1;transform:translateX(-50%) scale(1);} 100%{opacity:0;transform:translateX(-50%) scale(1.2);} }
+#controls { font-size: 11px; color: #666; line-height: 1.8; }
+#next-item-info { font-size: 13px; color: #aaa; min-height: 32px; }
+#next-item-info b { color: #eee; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="left-panel">
+    <div class="panel-box">
+      <div class="panel-title">점수</div>
+      <div class="panel-value" id="score">0</div>
+      <div class="panel-sub" id="stage-label">스테이지 1</div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-title">라인</div>
+      <div class="panel-value" id="lines">0</div>
+    </div>
+    <div class="panel-box" id="controls">
+      ← → 이동<br>↑ 회전<br>↓ 빠르게<br>스페이스 즉시낙하<br>1~5 아이템 사용<br>P 일시정지
+    </div>
+    <button id="btn-start">▶ 시작</button>
+  </div>
+
+  <div style="position:relative; display:inline-block;">
+    <canvas id="game-canvas" width="200" height="400"></canvas>
+    <div id="stage-banner">🎉 스테이지 업!</div>
+  </div>
+
+  <div id="right-panel">
+    <div class="panel-box">
+      <div class="panel-title">다음 블록</div>
+      <canvas id="next-canvas" width="100" height="100"></canvas>
+    </div>
+    <div class="panel-box">
+      <div class="panel-title">아이템 (1~5키)</div>
+      <div class="item-slot" id="item-0">
+        <span class="item-icon">💣</span>
+        <span>전체 폭파</span>
+        <span class="item-count" id="ic-0">0</span>
+      </div>
+      <div class="item-slot" id="item-1">
+        <span class="item-icon">📏</span>
+        <span>막대 3연속</span>
+        <span class="item-count" id="ic-1">0</span>
+      </div>
+      <div class="item-slot" id="item-2">
+        <span class="item-icon">⏱️</span>
+        <span>슬로우 타임</span>
+        <span class="item-count" id="ic-2">0</span>
+      </div>
+      <div class="item-slot" id="item-3">
+        <span class="item-icon">🔮</span>
+        <span>행 제거</span>
+        <span class="item-count" id="ic-3">0</span>
+      </div>
+      <div class="item-slot" id="item-4">
+        <span class="item-icon">🌀</span>
+        <span>색 변환</span>
+        <span class="item-count" id="ic-4">0</span>
+      </div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-title">다음 아이템</div>
+      <div id="next-item-info">—</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLS = 10, ROWS = 20, CELL = 20;
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const ncanvas = document.getElementById('next-canvas');
+const nctx = ncanvas.getContext('2d');
+
+const PIECES = [
+  { shape: [[1,1,1,1]],           color: '#00cfff', name:'I' },
+  { shape: [[1,1],[1,1]],          color: '#f5c842', name:'O' },
+  { shape: [[0,1,0],[1,1,1]],      color: '#b44fff', name:'T' },
+  { shape: [[1,0,0],[1,1,1]],      color: '#ff6b35', name:'L' },
+  { shape: [[0,0,1],[1,1,1]],      color: '#4fa3ff', name:'J' },
+  { shape: [[0,1,1],[1,1,0]],      color: '#42d97a', name:'S' },
+  { shape: [[1,1,0],[0,1,1]],      color: '#ff4f6a', name:'Z' },
+  { shape: [[1,0,1],[1,1,1]],      color: '#ff9f43', name:'U' },
+];
+
+const ITEM_TYPES = ['bomb','rod','slow','row','color'];
+const ITEM_INFO = {
+  bomb: { icon:'💣', name:'전체 폭파',   desc:'보드 하단 5줄 제거' },
+  rod:  { icon:'📏', name:'막대 3연속',  desc:'I블록 3개 연속 낙하' },
+  slow: { icon:'⏱️', name:'슬로우 타임', desc:'5초간 속도 절반' },
+  row:  { icon:'🔮', name:'행 제거',     desc:'가장 많이 찬 행 제거' },
+  color:{ icon:'🌀', name:'색 변환',     desc:'현재 블록 색 랜덤 변경' },
+};
+
+let board, piece, next, nextItem;
+let score, lines, stage, running, paused, gameOver;
+let dropTimer, dropInterval;
+let items, slowActive, rodQueue;
+
+function newBoard() {
+  return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+}
+
+function randPiece() {
+  const p = PIECES[Math.floor(Math.random() * PIECES.length)];
+  return {
+    shape: p.shape.map(r => [...r]),
+    color: p.color,
+    name: p.name,
+    x: Math.floor((COLS - p.shape[0].length) / 2),
+    y: 0,
+    hasItem: Math.random() < 0.18,
+  };
+}
+
+function randItem() {
+  return ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+}
+
+function rotate(shape) {
+  return shape[0].map((_, i) => shape.map(r => r[i]).reverse());
+}
+
+function valid(shape, ox, oy) {
+  for (let r = 0; r < shape.length; r++) {
+    for (let c = 0; c < shape[r].length; c++) {
+      if (!shape[r][c]) continue;
+      const nx = ox + c, ny = oy + r;
+      if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
+      if (ny >= 0 && board[ny][nx]) return false;
+    }
+  }
+  return true;
+}
+
+function lock() {
+  let collected = false;
+  for (let r = 0; r < piece.shape.length; r++) {
+    for (let c = 0; c < piece.shape[r].length; c++) {
+      if (!piece.shape[r][c]) continue;
+      if (piece.y + r < 0) { endGame(); return; }
+      board[piece.y + r][piece.x + c] = {
+        color: piece.color,
+        item: (!collected && piece.hasItem) ? piece.itemType : null,
+      };
+      if (!collected && piece.hasItem) collected = true;
+    }
+  }
+  clearLines();
+  spawnPiece();
+}
+
+function clearLines() {
+  let cleared = 0;
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(c => c)) {
+      for (let c = 0; c < COLS; c++) {
+        if (board[r][c] && board[r][c].item) {
+          items[board[r][c].item]++;
+          showEffect('+' + ITEM_INFO[board[r][c].item].icon, '#f5c842');
+        }
+      }
+      board.splice(r, 1);
+      board.unshift(Array(COLS).fill(null));
+      cleared++; r++;
+    }
+  }
+  if (cleared > 0) {
+    const pts = [0, 100, 300, 600, 1000][Math.min(cleared, 4)] * stage;
+    score += pts;
+    lines += cleared;
+    checkStage();
+    updateUI();
+  }
+}
+
+function checkStage() {
+  const ns = Math.floor(score / 1000) + 1;
+  if (ns > stage) {
+    stage = ns;
+    dropInterval = Math.max(100, 600 - (stage - 1) * 70);
+    restartDropTimer();
+    showStageBanner();
+  }
+}
+
+function showStageBanner() {
+  const el = document.getElementById('stage-banner');
+  el.textContent = '🎉 스테이지 ' + stage + '!';
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function spawnPiece() {
+  if (rodQueue > 0) {
+    piece = {
+      shape: [[1,1,1,1]], color: '#00cfff', name:'I',
+      x: Math.floor((COLS - 4) / 2), y: 0, hasItem: false,
+    };
+    rodQueue--;
+  } else {
+    piece = next || randPiece();
+    piece.itemType = nextItem || randItem();
+    piece.hasItem = Math.random() < 0.18;
+  }
+  next = randPiece();
+  next.itemType = randItem();
+  next.hasItem = Math.random() < 0.18;
+  nextItem = next.itemType;
+  updateNextItemInfo();
+  if (!valid(piece.shape, piece.x, piece.y)) endGame();
+}
+
+function drop() {
+  if (!running || paused || gameOver) return;
+  if (valid(piece.shape, piece.x, piece.y + 1)) piece.y++;
+  else lock();
+  draw(); drawNext();
+}
+
+function restartDropTimer() {
+  clearInterval(dropTimer);
+  dropTimer = setInterval(drop, slowActive ? dropInterval * 2 : dropInterval);
+}
+
+function endGame() {
+  running = false; gameOver = true;
+  clearInterval(dropTimer);
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#ff4f6a';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 12);
+  ctx.fillStyle = '#aaa';
+  ctx.font = '13px sans-serif';
+  ctx.fillText('시작 버튼으로 재시작', canvas.width / 2, canvas.height / 2 + 18);
+}
+
+function drawCell(c, x, y, color) {
+  c.fillStyle = color;
+  c.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+  c.fillStyle = 'rgba(255,255,255,0.22)';
+  c.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, 3);
+  c.fillStyle = 'rgba(0,0,0,0.22)';
+  c.fillRect(x * CELL + 1, y * CELL + CELL - 4, CELL - 2, 3);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 0.5;
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c * CELL, 0); ctx.lineTo(c * CELL, ROWS * CELL); ctx.stroke();
+  }
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * CELL); ctx.lineTo(COLS * CELL, r * CELL); ctx.stroke();
+  }
+
+  // board cells
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const cell = board[r][c];
+      if (!cell) continue;
+      drawCell(ctx, c, r, cell.color);
+      if (cell.item) {
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(ITEM_INFO[cell.item].icon.codePointAt(0) > 127 ? '★' : cell.item[0],
+          c * CELL + CELL / 2, r * CELL + CELL - 3);
+      }
+    }
+  }
+
+  if (!piece) return;
+
+  // ghost piece
+  let gy = piece.y;
+  while (valid(piece.shape, piece.x, gy + 1)) gy++;
+  for (let r = 0; r < piece.shape.length; r++) {
+    for (let c = 0; c < piece.shape[r].length; c++) {
+      if (!piece.shape[r][c]) continue;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect((piece.x + c) * CELL + 1, (gy + r) * CELL + 1, CELL - 2, CELL - 2);
+    }
+  }
+
+  // active piece
+  for (let r = 0; r < piece.shape.length; r++) {
+    for (let c = 0; c < piece.shape[r].length; c++) {
+      if (!piece.shape[r][c]) continue;
+      drawCell(ctx, piece.x + c, piece.y + r, piece.color);
+      if (piece.hasItem) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('★', (piece.x + c) * CELL + CELL / 2, (piece.y + r) * CELL + CELL - 3);
+      }
+    }
+  }
+
+  if (slowActive) {
+    ctx.fillStyle = 'rgba(100,180,255,0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+function drawNext() {
+  nctx.clearRect(0, 0, ncanvas.width, ncanvas.height);
+  nctx.fillStyle = '#111';
+  nctx.fillRect(0, 0, ncanvas.width, ncanvas.height);
+  if (!next) return;
+  const s = next.shape, cs = 18;
+  const ox = Math.floor((5 - s[0].length) / 2);
+  const oy = Math.floor((5 - s.length) / 2);
+  for (let r = 0; r < s.length; r++) {
+    for (let c = 0; c < s[r].length; c++) {
+      if (!s[r][c]) continue;
+      nctx.fillStyle = next.color;
+      nctx.fillRect((ox + c) * cs + 4, (oy + r) * cs + 4, cs - 2, cs - 2);
+      nctx.fillStyle = 'rgba(255,255,255,0.22)';
+      nctx.fillRect((ox + c) * cs + 4, (oy + r) * cs + 4, cs - 2, 3);
+    }
+  }
+  if (next.hasItem) {
+    nctx.fillStyle = '#f5c842';
+    nctx.font = '9px sans-serif';
+    nctx.textAlign = 'center';
+    nctx.fillText('★ 아이템', ncanvas.width / 2, ncanvas.height - 5);
+  }
+}
+
+function updateUI() {
+  document.getElementById('score').textContent = score.toLocaleString();
+  document.getElementById('lines').textContent = lines;
+  document.getElementById('stage-label').textContent = '스테이지 ' + stage;
+  ITEM_TYPES.forEach((t, i) => {
+    document.getElementById('ic-' + i).textContent = items[t];
+    document.getElementById('item-' + i).classList.toggle('has-item', items[t] > 0);
+  });
+}
+
+function updateNextItemInfo() {
+  const el = document.getElementById('next-item-info');
+  if (!next || !next.hasItem) {
+    el.textContent = '다음 블록에 아이템 없음';
+  } else {
+    const info = ITEM_INFO[next.itemType];
+    el.innerHTML = info.icon + ' <b>' + info.name + '</b><br>'
+      + '<span style="font-size:11px;color:#666">' + info.desc + '</span>';
+  }
+}
+
+function showEffect(text, color) {
+  const el = document.createElement('div');
+  el.className = 'effect-msg';
+  el.style.color = color || '#fff';
+  const rect = canvas.getBoundingClientRect();
+  el.style.left = (rect.left + 20 + Math.random() * 120) + 'px';
+  el.style.top  = (rect.top  + 60 + Math.random() * 60) + 'px';
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+function useItem(idx) {
+  const t = ITEM_TYPES[idx];
+  if (!items[t] || !running || paused || gameOver) return;
+  items[t]--;
+
+  if (t === 'bomb') {
+    for (let r = ROWS - 1, cnt = 0; r >= 0 && cnt < 5; r--, cnt++)
+      board[r] = Array(COLS).fill(null);
+    score += 200 * stage;
+    showEffect('💣 폭파!', '#ff6b35');
+  } else if (t === 'rod') {
+    rodQueue = 3;
+    showEffect('📏 막대 3연속!', '#00cfff');
+  } else if (t === 'slow') {
+    slowActive = true;
+    showEffect('⏱️ 슬로우!', '#4fa3ff');
+    restartDropTimer();
+    setTimeout(() => {
+      slowActive = false;
+      restartDropTimer();
+      showEffect('슬로우 종료', '#aaa');
+    }, 5000);
+  } else if (t === 'row') {
+    let best = -1, bestCount = -1;
+    for (let r = 0; r < ROWS; r++) {
+      const cnt = board[r].filter(Boolean).length;
+      if (cnt > bestCount) { bestCount = cnt; best = r; }
+    }
+    if (best >= 0) {
+      board.splice(best, 1);
+      board.unshift(Array(COLS).fill(null));
+      score += 100 * stage;
+    }
+    showEffect('🔮 행 제거!', '#b44fff');
+  } else if (t === 'color') {
+    piece.color = PIECES[Math.floor(Math.random() * PIECES.length)].color;
+    showEffect('🌀 색 변환!', '#42d97a');
+  }
+
+  updateUI(); draw(); drawNext();
+}
+
+function startGame() {
+  board = newBoard();
+  score = 0; lines = 0; stage = 1;
+  gameOver = false; running = true; paused = false;
+  dropInterval = 600;
+  items = { bomb:0, rod:0, slow:0, row:0, color:0 };
+  rodQueue = 0; slowActive = false;
+  next = randPiece(); next.itemType = randItem(); next.hasItem = Math.random() < 0.18;
+  nextItem = next.itemType;
+  spawnPiece(); updateUI(); draw(); drawNext();
+  restartDropTimer();
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+
+for (let i = 0; i < 5; i++) {
+  document.getElementById('item-' + i).addEventListener('click', () => useItem(i));
+}
+
+document.addEventListener('keydown', e => {
+  if (!running || paused || gameOver) {
+    if (e.code === 'Space') { startGame(); e.preventDefault(); }
+    return;
+  }
+  if      (e.code === 'ArrowLeft')  { if (valid(piece.shape, piece.x - 1, piece.y)) piece.x--; }
+  else if (e.code === 'ArrowRight') { if (valid(piece.shape, piece.x + 1, piece.y)) piece.x++; }
+  else if (e.code === 'ArrowDown')  { if (valid(piece.shape, piece.x, piece.y + 1)) piece.y++; else lock(); }
+  else if (e.code === 'ArrowUp') {
+    const r = rotate(piece.shape);
+    if      (valid(r, piece.x,     piece.y)) { piece.shape = r; }
+    else if (valid(r, piece.x - 1, piece.y)) { piece.shape = r; piece.x--; }
+    else if (valid(r, piece.x + 1, piece.y)) { piece.shape = r; piece.x++; }
+  }
+  else if (e.code === 'Space') {
+    while (valid(piece.shape, piece.x, piece.y + 1)) piece.y++;
+    lock();
+  }
+  else if (e.key === '1') useItem(0);
+  else if (e.key === '2') useItem(1);
+  else if (e.key === '3') useItem(2);
+  else if (e.key === '4') useItem(3);
+  else if (e.key === '5') useItem(4);
+  else if (e.code === 'KeyP') {
+    paused = !paused;
+    if (!paused) restartDropTimer(); else clearInterval(dropTimer);
+  }
+  if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp','Space'].includes(e.code)) e.preventDefault();
+  draw(); drawNext();
+});
+
+// initial render
+board = newBoard(); draw(); drawNext(); updateUI();
+</script>
+</body>
+</html>
